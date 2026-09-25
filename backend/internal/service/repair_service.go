@@ -1,11 +1,18 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"github.com/smartestate/smartestate/internal/constants"
 	"github.com/smartestate/smartestate/internal/model"
 	"github.com/smartestate/smartestate/internal/repository"
 	"log/slog"
+)
+
+var (
+	ErrRepairNotReporter  = errors.New("only the reporter can accept or return this repair")
+	ErrRepairNotAccepting = errors.New("repair is not awaiting acceptance")
+	ErrRepairCloseDenied  = errors.New("closing a repair requires reporter confirmation")
 )
 
 type RepairService struct {
@@ -50,9 +57,15 @@ func (s *RepairService) UpdateStatus(id uint, status string, rating int, role st
 	if !constants.ValidRepairStatuses[status] {
 		return model.Repair{}, fmt.Errorf("Repair[id=%d] status failed: invalid status, current role=%s", id, role)
 	}
+	if status == constants.RepairStatusClosed {
+		return model.Repair{}, fmt.Errorf("Repair[id=%d] status failed: %w, current role=%s", id, ErrRepairCloseDenied, role)
+	}
 	v, e := s.repo.ByID(id)
 	if e != nil {
 		return v, e
+	}
+	if status == constants.RepairStatusDone {
+		status = constants.RepairStatusAcceptance
 	}
 	v.Status = status
 	if rating > 0 {
@@ -60,6 +73,45 @@ func (s *RepairService) UpdateStatus(id uint, status string, rating int, role st
 	}
 	if e = s.repo.Update(&v); e != nil {
 		return v, fmt.Errorf("Repair[id=%d] status failed: %w", id, e)
+	}
+	return s.repo.ByID(id)
+}
+func (s *RepairService) Confirm(id, uid uint, role string) (model.Repair, error) {
+	v, e := s.repo.ByID(id)
+	if e != nil {
+		return v, e
+	}
+	if v.UserID != uid {
+		return v, fmt.Errorf("Repair[id=%d] confirm failed: %w, current role=%s", id, ErrRepairNotReporter, role)
+	}
+	if v.Status == constants.RepairStatusClosed {
+		return v, nil
+	}
+	if v.Status != constants.RepairStatusAcceptance {
+		return v, fmt.Errorf("Repair[id=%d] confirm failed: %w (status=%s), current role=%s", id, ErrRepairNotAccepting, v.Status, role)
+	}
+	v.Status = constants.RepairStatusClosed
+	if e = s.repo.Update(&v); e != nil {
+		return v, fmt.Errorf("Repair[id=%d] confirm failed: %w", id, e)
+	}
+	return s.repo.ByID(id)
+}
+func (s *RepairService) Return(id, uid uint, reason, role string) (model.Repair, error) {
+	v, e := s.repo.ByID(id)
+	if e != nil {
+		return v, e
+	}
+	if v.UserID != uid {
+		return v, fmt.Errorf("Repair[id=%d] return failed: %w, current role=%s", id, ErrRepairNotReporter, role)
+	}
+	if v.Status != constants.RepairStatusAcceptance {
+		return v, fmt.Errorf("Repair[id=%d] return failed: %w (status=%s), current role=%s", id, ErrRepairNotAccepting, v.Status, role)
+	}
+	v.Status = constants.RepairStatusProcessing
+	v.ReturnReason = reason
+	v.ReworkCount++
+	if e = s.repo.Update(&v); e != nil {
+		return v, fmt.Errorf("Repair[id=%d] return failed: %w", id, e)
 	}
 	return s.repo.ByID(id)
 }

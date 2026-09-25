@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"errors"
 	"github.com/gin-gonic/gin"
+	"github.com/smartestate/smartestate/internal/constants"
 	"github.com/smartestate/smartestate/internal/dto"
 	"github.com/smartestate/smartestate/internal/service"
+	"net/http"
 	"strconv"
 )
 
@@ -60,4 +63,33 @@ func (h *RepairHandler) Status(c *gin.Context) {
 		return
 	}
 	OK(c, v)
+}
+func (h *RepairHandler) Confirm(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	v, e := h.svc.Confirm(uint(id), c.GetUint("userID"), c.GetString("role"))
+	if e != nil {
+		acceptanceFail(c, e)
+		return
+	}
+	OK(c, v)
+}
+func (h *RepairHandler) Return(c *gin.Context) {
+	var r dto.ReturnRepairRequest
+	if !Bind(c, &r, h.Validate) {
+		return
+	}
+	id, _ := strconv.Atoi(c.Param("id"))
+	v, e := h.svc.Return(uint(id), c.GetUint("userID"), r.Reason, c.GetString("role"))
+	if e != nil {
+		acceptanceFail(c, e)
+		return
+	}
+	OK(c, v)
+}
+func acceptanceFail(c *gin.Context, e error) {
+	if errors.Is(e, service.ErrRepairNotReporter) {
+		Fail(c, http.StatusForbidden, constants.CodeForbidden, e.Error())
+		return
+	}
+	Fail(c, 400, constants.CodeBadRequest, e.Error())
 }

@@ -4,5 +4,8 @@ paths:
   /healthz: { get: { summary: Health check } }
   /api/v1/auth/login: { post: { summary: Login } }
   /api/v1/repairs: { get: { summary: List repairs }, post: { summary: Create repair } }
+  /api/v1/repairs/{id}/status: { patch: { summary: Update repair progress (done lands on acceptance, closed is rejected) } }
+  /api/v1/repairs/{id}/confirm: { post: { summary: Reporter confirms acceptance, archives as closed (idempotent) } }
+  /api/v1/repairs/{id}/return: { post: { summary: Reporter returns repair with reason, back to processing, rework count +1 } }
   /api/v1/payments: { get: { summary: List payments }, post: { summary: Create bill } }
   /api/v1/announcements: { get: { summary: List announcements }, post: { summary: Publish announcement } }

@@ -19,7 +19,7 @@ docker compose up -d
 ## 主要功能
 
 - **物业工作台**：汇总待办报修、本月已收费用和近期公告。
-- **报修管理**：业主创建水电/家具/公共设施等报修；物业筛选、分配和更新进度。
+- **报修管理**：业主创建水电/家具/公共设施等报修；物业筛选、分配和更新进度；师傅标记完成后工单进入**待验收**，仅报修人可确认归档关闭或填写原因退回返工（退回累加返工次数，重复确认不改变终态）。
 - **费用缴纳**：按业主展示账单，通过支付宝沙箱模拟完成支付和记录查询。
 - **社区公告**：置顶、发布、详情查看与阅读计数。
 - **个人中心**：更新昵称、头像 URL，并绑定楼栋、单元和房间。
@@ -70,7 +70,9 @@ cd backend && go build ./...
 | GET | `/users/staff` | 获取处理人员，`repair:manage` |
 | GET/POST | `/repairs` | 工单列表 / 创建工单 |
 | PATCH | `/repairs/:id/assign` | 分配处理人，`repair:manage` |
-| PATCH | `/repairs/:id/status` | 更新进度，`repair:manage` |
+| PATCH | `/repairs/:id/status` | 更新进度（`done` 落库为 `acceptance` 待验收，不允许直接 `closed`），`repair:manage` |
+| POST | `/repairs/:id/confirm` | 报修人确认验收并归档关闭（重复确认幂等，仅报修人） |
+| POST | `/repairs/:id/return` | 报修人退回工单（必填退回原因，回到处理中并累加返工次数，仅报修人） |
 | GET/POST | `/payments` | 账单列表 / 生成账单 |
 | POST | `/payments/:id/pay` | 模拟支付（限流） |
 | GET/POST | `/announcements` | 公告列表 / 发布，发布需 `announcement:publish` |
@@ -115,8 +117,10 @@ OpenAPI 摘要位于 `backend/api/openapi.yaml`。
 
 ### RepairStatus
 
-- 后端定义：`backend/internal/constants/repair.go`；数据库 `Repair.status`；模型 `backend/internal/model/repair.go`。
-- 后端使用：`backend/internal/service/repair_service.go` 状态机、`backend/internal/handler/repair_handler.go` DTO 校验、`backend/internal/constants/log_templates.go`、`backend/internal/util/formatter.go`。
+取值：`pending`（待受理）、`assigned`（已分派）、`processing`（处理中）、`done`（已完成，提交后落库为待验收）、`acceptance`（待验收）、`closed`（已关闭）。
+
+- 后端定义：`backend/internal/constants/repair.go`；数据库 `Repair.status`；模型 `backend/internal/model/repair.go`（含 `return_reason`、`rework_count`）。
+- 后端使用：`backend/internal/service/repair_service.go` 状态机（含 `Confirm`/`Return` 验收流转）、`backend/internal/handler/repair_handler.go` DTO 校验、`backend/internal/router/repairs.go`、`backend/internal/constants/log_templates.go`、`backend/internal/util/formatter.go`。
 - 前端定义：`frontend/src/constants/repair.ts`、`frontend/src/types/index.ts`。
 - 前端使用：`frontend/src/components/common/RepairStatusBadge.vue`、`RepairCard.vue`、`frontend/src/pages/Repairs.vue` 的筛选器、`frontend/src/api/repair.ts`、`frontend/src/hooks/useRepairStats.ts`。
 
