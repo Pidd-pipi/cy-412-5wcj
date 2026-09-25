@@ -70,7 +70,9 @@ cd backend && go build ./...
 | GET | `/users/staff` | 获取处理人员，`repair:manage` |
 | GET/POST | `/repairs` | 工单列表 / 创建工单 |
 | PATCH | `/repairs/:id/assign` | 分配处理人，`repair:manage` |
-| PATCH | `/repairs/:id/status` | 更新进度，`repair:manage` |
+| PATCH | `/repairs/:id/status` | 更新进度，`repair:manage`；`done` 即待验收，`closed` 只能由报修人确认产生 |
+| POST | `/repairs/:id/confirm` | 报修人确认验收，工单归档关闭；重复确认幂等不改终态 |
+| POST | `/repairs/:id/reject` | 报修人退回（必填原因），工单回到处理中并累加返工次数 |
 | GET/POST | `/payments` | 账单列表 / 生成账单 |
 | POST | `/payments/:id/pay` | 模拟支付（限流） |
 | GET/POST | `/announcements` | 公告列表 / 发布，发布需 `announcement:publish` |
